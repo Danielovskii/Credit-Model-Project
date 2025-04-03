@@ -1,4 +1,6 @@
 import random
+#comentario prueba
+
 
 # Funciones del modelo (copiadas de la versión anterior)
 def check_eligibility(age: int, monthly_income: float, loan_amount: float) -> bool:
