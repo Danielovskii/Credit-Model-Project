@@ -132,8 +132,13 @@ class CreditRiskMLModel:
         if "Unnamed: 0" in test_data.columns:
             test_data = test_data.drop(columns=["Unnamed: 0"])
 
-        if "SeriousDlqin2yrs" in test_data.columns:
+        has_target = "SeriousDlqin2yrs" in test_data.columns and test_data["SeriousDlqin2yrs"].notna().sum() > 0
+        if has_target:
+            test_data = test_data.dropna(subset=["SeriousDlqin2yrs"])
+            y_true = test_data["SeriousDlqin2yrs"].astype(int)
             test_data = test_data.drop(columns=["SeriousDlqin2yrs"])
+        else:
+            y_true = None
 
         missing_cols = [col for col in self.features if col not in test_data.columns]
         if missing_cols:
@@ -149,9 +154,49 @@ class CreditRiskMLModel:
             return pd.DataFrame()
 
         test_scaled = self.scaler.transform(test_data)
-        predictions = self.logistic_model.predict(test_scaled)
 
-        return pd.DataFrame({"Prediction": predictions})
+        # Logistic Regression
+        lr_preds = self.logistic_model.predict(test_scaled)
+        lr_probs = self.logistic_model.predict_proba(test_scaled)[:, 1]
+
+        # Neural Network
+        nn_probs = self.nn_model.predict(test_scaled, verbose=0).flatten()
+        nn_preds = (nn_probs >= 0.5).astype(int)
+
+        if y_true is not None:
+            from pandas import DataFrame
+            print("\n=== Test Set Evaluation ===")
+
+            results = []
+
+            results.append({
+                "Model": "Logistic Regression",
+                "Accuracy": accuracy_score(y_true, lr_preds),
+                "Precision": precision_score(y_true, lr_preds),
+                "Recall": recall_score(y_true, lr_preds),
+                "F1-Score": f1_score(y_true, lr_preds),
+                "AUC-ROC": roc_auc_score(y_true, lr_probs)
+            })
+
+            results.append({
+                "Model": "Neural Network",
+                "Accuracy": accuracy_score(y_true, nn_preds),
+                "Precision": precision_score(y_true, nn_preds),
+                "Recall": recall_score(y_true, nn_preds),
+                "F1-Score": f1_score(y_true, nn_preds),
+                "AUC-ROC": roc_auc_score(y_true, nn_probs)
+            })
+
+            df_results = DataFrame(results)
+            print(df_results.to_string(index=False))
+
+            print("\nConfusion Matrix: Logistic Regression")
+            print(confusion_matrix(y_true, lr_preds))
+
+            print("\nConfusion Matrix: Neural Network")
+            print(confusion_matrix(y_true, nn_preds))
+
+        return pd.DataFrame({"Prediction": nn_preds})
 
 def main():
     data = pd.read_csv("data/cs-training.csv")

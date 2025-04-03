@@ -18,7 +18,6 @@ class CreditRiskMLModel:
     """Clase que implementa un modelo de riesgo crediticio usando Machine Learning."""
     
     def __init__(self, random_state=42):
-        """Inicializa el modelo de riesgo crediticio."""
         self.random_state = random_state
         self.scaler = StandardScaler()
         self.imputer_median = SimpleImputer(strategy="median")
@@ -32,12 +31,8 @@ class CreditRiskMLModel:
         self.class_weights = None
 
     def preprocess_data(self, data: pd.DataFrame, target_col: str) -> None:
-        """Preprocesa los datos: limpia outliers, imputa valores faltantes, estandariza y divide en entrenamiento/prueba."""
-        # Eliminar columna 'Unnamed: 0'
         if "Unnamed: 0" in data.columns:
             data = data.drop(columns=["Unnamed: 0"])
-
-        # Eliminar outliers
         data = data[data["RevolvingUtilizationOfUnsecuredLines"] < 13]
         data = data[~data["NumberOfTimes90DaysLate"].isin([96, 98])]
         data = data[~data["NumberOfTime60-89DaysPastDueNotWorse"].isin([96, 98])]
@@ -45,34 +40,26 @@ class CreditRiskMLModel:
         debt_ratio_threshold = data["DebtRatio"].quantile(0.975)
         data = data[data["DebtRatio"] <= debt_ratio_threshold]
 
-        # Separar características y objetivo
         X = data.drop(columns=[target_col])
         y = data[target_col]
-
-        # Imputar valores faltantes
         X["MonthlyIncome"] = self.imputer_median.fit_transform(X[["MonthlyIncome"]])
         X["NumberOfDependents"] = self.imputer_mode.fit_transform(X[["NumberOfDependents"]])
 
-        # Dividir en entrenamiento y prueba
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
             X, y, test_size=0.3, random_state=self.random_state, stratify=y
         )
 
-        # Estandarizar las características
         self.X_train = self.scaler.fit_transform(self.X_train)
         self.X_test = self.scaler.transform(self.X_test)
 
-        # Calcular pesos de clase para manejar el desbalanceo
         classes = np.unique(self.y_train)
         self.class_weights = compute_class_weight(class_weight="balanced", classes=classes, y=self.y_train)
         self.class_weights = dict(zip(classes, self.class_weights))
 
     def train_logistic_regression(self) -> None:
-        """Entrena el modelo de regresión logística."""
         self.logistic_model.fit(self.X_train, self.y_train)
 
     def train_neural_network(self) -> None:
-        """Entrena una red neuronal con dos capas ocultas."""
         self.nn_model = Sequential([
             Dense(64, activation="relu", input_shape=(self.X_train.shape[1],), kernel_regularizer=l2(0.01)),
             Dropout(0.2),
@@ -89,16 +76,11 @@ class CreditRiskMLModel:
         )
 
     def evaluate_models(self) -> dict:
-        """Evalúa ambos modelos y retorna métricas de desempeño."""
-        # Predicciones de la regresión logística
         lr_pred = self.logistic_model.predict(self.X_test)
         lr_prob = self.logistic_model.predict_proba(self.X_test)[:, 1]
-
-        # Predicciones de la red neuronal
         nn_prob = self.nn_model.predict(self.X_test, verbose=0).flatten()
         nn_pred = (nn_prob >= 0.5).astype(int)
 
-        # Calcular métricas
         metrics = {
             "Logistic Regression": {
                 "Accuracy": accuracy_score(self.y_test, lr_pred),
@@ -120,10 +102,8 @@ class CreditRiskMLModel:
         return metrics
 
     def plot_evaluation(self, model_name: str, y_true: np.ndarray, y_pred: np.ndarray, y_prob: np.ndarray):
-        """Genera gráficos de evaluación: matriz de confusión y curva ROC."""
         plt.figure(figsize=(12, 4))
 
-        # Matriz de confusión
         cm = confusion_matrix(y_true, y_pred)
         plt.subplot(1, 2, 1)
         sns.heatmap(cm, annot=True, cmap="Blues", fmt="g", cbar=False)
@@ -131,7 +111,6 @@ class CreditRiskMLModel:
         plt.xlabel("Predicted")
         plt.ylabel("Actual")
 
-        # Curva ROC
         fpr, tpr, _ = roc_curve(y_true, y_prob)
         roc_auc = roc_auc_score(y_true, y_prob)
         plt.subplot(1, 2, 2)
@@ -144,25 +123,37 @@ class CreditRiskMLModel:
         plt.tight_layout()
         plt.show()
 
+    def plot_combined_roc(self):
+        """Grafica la curva ROC de regresión logística y red neuronal en un solo gráfico para comparación."""
+        lr_prob = self.logistic_model.predict_proba(self.X_test)[:, 1]
+        nn_prob = self.nn_model.predict(self.X_test, verbose=0).flatten()
+
+        fpr_lr, tpr_lr, _ = roc_curve(self.y_test, lr_prob)
+        auc_lr = roc_auc_score(self.y_test, lr_prob)
+
+        fpr_nn, tpr_nn, _ = roc_curve(self.y_test, nn_prob)
+        auc_nn = roc_auc_score(self.y_test, nn_prob)
+
+        plt.figure(figsize=(8, 6))
+        plt.plot(fpr_lr, tpr_lr, label=f"Logistic Regression (AUC = {auc_lr:.2f})")
+        plt.plot(fpr_nn, tpr_nn, label=f"Neural Network (AUC = {auc_nn:.2f})", linestyle="--")
+        plt.plot([0, 1], [0, 1], color="gray", linestyle=":")
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title("Comparación de Curvas ROC")
+        plt.legend(loc="lower right")
+        plt.grid(True)
+        plt.tight_layout()
+        plt.show()
+
 def main():
-    """Función principal para ejecutar el modelo."""
-    # Cargar el dataset
-    data = pd.read_csv('src/Part C/data/cs-training.csv')
-
-    # Inicializar el modelo
+    data = pd.read_csv('data/cs-training.csv')
     model = CreditRiskMLModel()
-
-    # Preprocesar los datos
     model.preprocess_data(data, target_col="SeriousDlqin2yrs")
-
-    # Entrenar los modelos
     model.train_logistic_regression()
     model.train_neural_network()
-
-    # Evaluar los modelos
     metrics = model.evaluate_models()
 
-    # Imprimir resultados
     print("\n=== Resultados de la Evaluación ===")
     for model_name, model_metrics in metrics.items():
         print(f"\nModelo: {model_name}")
@@ -174,7 +165,7 @@ def main():
         print("Matriz de Confusión:")
         print(model_metrics['Confusion Matrix'])
 
-    # Generar gráficos de evaluación
+    # Gráficos individuales (opcional)
     lr_pred = model.logistic_model.predict(model.X_test)
     lr_prob = model.logistic_model.predict_proba(model.X_test)[:, 1]
     nn_prob = model.nn_model.predict(model.X_test, verbose=0).flatten()
@@ -182,6 +173,9 @@ def main():
     
     model.plot_evaluation("Logistic Regression", model.y_test, lr_pred, lr_prob)
     model.plot_evaluation("Neural Network", model.y_test, nn_pred, nn_prob)
+
+    # Gráfico combinado
+    model.plot_combined_roc()
 
 if __name__ == "__main__":
     main()
