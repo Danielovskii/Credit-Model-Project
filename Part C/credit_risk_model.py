@@ -2,7 +2,7 @@
 # Autores: [Daniel Sánchez & Ana Luisa Espinoza & Gustavo de Anda]
 # Fecha: 31 de marzo de 2025
 # Descripción: Modelo de riesgo que expande el scorecard tradicional de la Parte A,
-# Mediante una Red Neuronal obtiene la probabilidad de incumplimiento
+# Mediante una Red Neuronal obtiene la probabilidad de incumplimiento q
 
                                                                 # el modelo calcula métricas de riesgo como:
                                                                 # - Probability of Default (PD)
