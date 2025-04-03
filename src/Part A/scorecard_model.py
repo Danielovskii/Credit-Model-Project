@@ -4,6 +4,12 @@
 # Descripción: Scorecard híbrido con restricciones de entrada basado en bancos mexicanos,
 # basado en modelos como FICO y VantageScore.
 
+
+import pandas as pd
+import numpy as np
+import os
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+
 def check_eligibility(age, monthly_income, loan_amount):
     """Verifica si el solicitante cumple con los requisitos mínimos.
     
@@ -133,6 +139,36 @@ def open_loans_score(num_loans):
     else:
         return 40
 
+def prepare_applicant_data(row):
+    """Transforma una fila del dataset en el formato esperado por el scorecard."""
+    # Imputar valores faltantes
+    monthly_income = row["MonthlyIncome"] if not pd.isna(row["MonthlyIncome"]) else row["MonthlyIncome"].median()
+    
+    # Mapeo de variables
+    applicant_data = {
+        "age": row["age"],
+        "monthly_income": monthly_income,
+        "loan_amount": 10000,  # Asumimos $10,000 para pruebas
+        "late_payments": (
+            row["NumberOfTime30-59DaysPastDueNotWorse"] +
+            row["NumberOfTime60-89DaysPastDueNotWorse"] +
+            row["NumberOfTimes90DaysLate"]
+        ),
+        "amount_owed": monthly_income * row["DebtRatio"] * 12,  # Estimamos deuda anual
+        "credit_age": min(max(0, row["age"] - 18), 20),  # Limitamos a 20 años
+        "credit_types": (
+            2 if row["NumberRealEstateLoansOrLines"] > 0 and 
+                row["NumberOfOpenCreditLinesAndLoans"] > row["NumberRealEstateLoansOrLines"] 
+                else 1
+        ),
+        "inquiries": 0,  # Asumimos 0 consultas
+        "available_credit": 10000 * (1 - row["RevolvingUtilizationOfUnsecuredLines"]),  # Límite fijo de $10,000
+        "credit_usage": row["RevolvingUtilizationOfUnsecuredLines"] * 100,  # Convertimos a porcentaje
+        "job_tenure": 3,  # Asumimos 3 años
+        "open_loans": row["NumberOfOpenCreditLinesAndLoans"]
+    }
+    return applicant_data
+
 def evaluate_applicant(data):
     """Evalúa al solicitante si es elegible y calcula el puntaje total."""
     # Verificar elegibilidad
@@ -153,48 +189,75 @@ def evaluate_applicant(data):
         open_loans_score(data["open_loans"])
     )
     
-    threshold = 600 # Umbral de aprobación
+    threshold = 600  # Umbral de aprobación
     decision = "Aprobado" if total_score >= threshold else "Rechazado"
     return total_score, decision
 
-# Ejemplo de uso
-applicant_data = {
-    "age": 25,              # Edad
-    "monthly_income": 2500, # Ingresos mensuales en USD
-    "loan_amount": 10000,   # Monto solicitado en USD
-    "late_payments": 0,     # Sin atrasos
-    "amount_owed": 3000,    # $3000 adeudados
-    "credit_age": 7,        # 7 años de historial
-    "credit_types": 3,      # 3 tipos de cuentas
-    "inquiries": 1,         # 1 consulta
-    "available_credit": 4000, # $4000 disponibles
-    "credit_usage": 25,     # 25% utilización
-    "job_tenure": 4,        # 4 años en empleo
-    "open_loans": 2         # 2 préstamos activos
-}
+def evaluate_dataset(data):
+    """Evalúa todo el dataset y compara con la variable objetivo."""
+    scores = []
+    decisions = []
+    
+    for _, row in data.iterrows():
+        applicant_data = prepare_applicant_data(row)
+        score, decision = evaluate_applicant(applicant_data)
+        scores.append(score if score is not None else 0)
+        decisions.append(1 if decision == "Aprobado" else 0)  # 1 = Aprobado, 0 = Rechazado/No elegible
+    
+    return scores, decisions
 
-score, decision = evaluate_applicant(applicant_data)
-if score is not None:
-    print(f"Puntaje total: {score} / 1350")
-print(f"Decisión: {decision}")
+def main():
+    """Función principal para probar el scorecard con el dataset."""
+    # Cargar el dataset
+    
+    data = pd.read_csv("src/Part A/data/cs-training.csv")
 
-# Ejemplo no elegible
-applicant_data2 = {
-    "age": 17,              # Menor de edad
-    "monthly_income": 300,  # Ingresos insuficientes
-    "loan_amount": 200000,  # Excede el máximo
-    "late_payments": 0,
-    "amount_owed": 3000,
-    "credit_age": 7,
-    "credit_types": 3,
-    "inquiries": 1,
-    "available_credit": 4000,
-    "credit_usage": 25,
-    "job_tenure": 4,
-    "open_loans": 2
-}
+    # Limpiar el dataset (mismo preprocesamiento que en la Parte C)
+    if "Unnamed: 0" in data.columns:
+        data = data.drop(columns=["Unnamed: 0"])
+    data = data[data["RevolvingUtilizationOfUnsecuredLines"] < 13]
+    data = data[~data["NumberOfTimes90DaysLate"].isin([96, 98])]
+    data = data[~data["NumberOfTime60-89DaysPastDueNotWorse"].isin([96, 98])]
+    data = data[~data["NumberOfTime30-59DaysPastDueNotWorse"].isin([96, 98])]
+    debt_ratio_threshold = data["DebtRatio"].quantile(0.975)
+    data = data[data["DebtRatio"] <= debt_ratio_threshold]
 
-score2, decision2 = evaluate_applicant(applicant_data2)
-if score2 is not None:
-    print(f"Puntaje total: {score2} / 1350")
-print(f"Decisión: {decision2}")
+    # Imputar valores faltantes para MonthlyIncome (usamos la mediana del dataset completo)
+    data["MonthlyIncome"] = data["MonthlyIncome"].fillna(data["MonthlyIncome"].median())
+
+    # Evaluar el dataset
+    scores, decisions = evaluate_dataset(data)
+
+    # Comparar con la variable objetivo (SeriousDlqin2yrs invertida: 1 = no incumplimiento, 0 = incumplimiento)
+    y_true = 1 - data["SeriousDlqin2yrs"]  # Invertimos para que 1 = buen cliente (debería ser Aprobado)
+    y_pred = decisions
+
+    # Calcular métricas
+    metrics = {
+        "Accuracy": accuracy_score(y_true, y_pred),
+        "Precision": precision_score(y_true, y_pred),
+        "Recall": recall_score(y_true, y_pred),
+        "F1-Score": f1_score(y_true, y_pred),
+        "Confusion Matrix": confusion_matrix(y_true, y_pred)
+    }
+
+    # Imprimir resultados
+    print("=== Resultados de la Evaluación del Scorecard ===")
+    print(f"Accuracy: {metrics['Accuracy']:.4f}")
+    print(f"Precision: {metrics['Precision']:.4f}")
+    print(f"Recall: {metrics['Recall']:.4f}")
+    print(f"F1-Score: {metrics['F1-Score']:.4f}")
+    print("Matriz de Confusión:")
+    print(metrics['Confusion Matrix'])
+
+    # Estadísticas de los puntajes
+    valid_scores = [s for s in scores if s > 0]
+    print("\nEstadísticas de los Puntajes:")
+    print(f"Solicitantes Elegibles: {len(valid_scores)}")
+    print(f"Promedio de Puntaje: {np.mean(valid_scores):.2f}")
+    print(f"Desviación Estándar: {np.std(valid_scores):.2f}")
+    print(f"Puntaje Mínimo: {np.min(valid_scores) if valid_scores else 0}")
+    print(f"Puntaje Máximo: {np.max(valid_scores) if valid_scores else 0}")
+
+if __name__ == "__main__":
+    main()
