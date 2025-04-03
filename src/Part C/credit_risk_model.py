@@ -12,15 +12,18 @@
 import pandas as pd
 import numpy as np
 import pickle
+import matplotlib.pyplot as plt
+import seaborn as sns
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score, precision_score, recall_score, f1_score, accuracy_score, confusion_matrix
+from sklearn.metrics import roc_auc_score, precision_score, recall_score, f1_score, accuracy_score, confusion_matrix, roc_curve
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, Dropout, BatchNormalization
 from tensorflow.keras.regularizers import l2
 from sklearn.utils.class_weight import compute_class_weight
+
 
 class CreditRiskMLModel:
     """
@@ -103,14 +106,16 @@ class CreditRiskMLModel:
         nn_prob = self.nn_model.predict(self.X_test, verbose=0).flatten()
         nn_pred = (nn_prob >= 0.5).astype(int)
 
-        return {
+        metrics = {
             "Logistic Regression": {
                 "Accuracy": accuracy_score(self.y_test, lr_pred),
                 "Precision": precision_score(self.y_test, lr_pred),
                 "Recall": recall_score(self.y_test, lr_pred),
                 "F1-Score": f1_score(self.y_test, lr_pred),
                 "AUC-ROC": roc_auc_score(self.y_test, lr_prob),
-                "Confusion Matrix": confusion_matrix(self.y_test, lr_pred)
+                "Confusion Matrix": confusion_matrix(self.y_test, lr_pred),
+                "Actual": self.y_test,
+                "Predicted Proba": lr_prob
             },
             "Neural Network": {
                 "Accuracy": accuracy_score(self.y_test, nn_pred),
@@ -118,9 +123,47 @@ class CreditRiskMLModel:
                 "Recall": recall_score(self.y_test, nn_pred),
                 "F1-Score": f1_score(self.y_test, nn_pred),
                 "AUC-ROC": roc_auc_score(self.y_test, nn_prob),
-                "Confusion Matrix": confusion_matrix(self.y_test, nn_pred)
+                "Confusion Matrix": confusion_matrix(self.y_test, nn_pred),
+                "Actual": self.y_test,
+                "Predicted Proba": nn_prob
             }
         }
+        self.plot_confusion_matrix(metrics)
+        self.plot_roc_curves(metrics)
+
+        return metrics
+
+    def plot_confusion_matrix(self, metrics):
+        fig, axes = plt.subplots(1, 2, figsize=(12, 5))
+        for i, (model_name, values) in enumerate(metrics.items()):
+            cm = values["Confusion Matrix"]
+            sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=["No Default", "Default"],
+                        yticklabels=["No Default", "Default"], ax=axes[i])
+            axes[i].set_title(f"{model_name} - Confusion Matrix")
+            axes[i].set_xlabel("Predicted Label")
+            axes[i].set_ylabel("True Label")
+        plt.tight_layout()
+        plt.show()
+
+    def plot_roc_curves(self, metrics):
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 6))
+        
+        for (ax, (model_name, values), color) in zip([ax1, ax2], metrics.items(), ['darkgreen', 'darkblue']):
+            fpr, tpr, _ = roc_curve(values["Actual"], values["Predicted Proba"])
+            auc = roc_auc_score(values["Actual"], values["Predicted Proba"])
+            
+            ax.plot(fpr, tpr, color=color, label=f'{model_name} ROC curve (AUC = {auc:.2f})', linewidth=2)
+            ax.plot([0, 1], [0, 1], color='red', linestyle='--', label='Random Classifier')
+            ax.set_xlim([0.0, 1.0])
+            ax.set_ylim([0.0, 1.05])
+            ax.set_xlabel('False Positive Rate')
+            ax.set_ylabel('True Positive Rate')
+            ax.set_title(f'ROC Curve - {model_name}')
+            ax.legend(loc="lower right")
+            ax.grid(True, linestyle='--', linewidth=0.5, color='lightgray')
+        
+        plt.tight_layout()
+        plt.show()
 
     def save_model(self, filename="logistic_model.pkl"):
         with open(filename, "wb") as f:
@@ -199,7 +242,7 @@ class CreditRiskMLModel:
         return pd.DataFrame({"Prediction": nn_preds})
 
 def main():
-    data = pd.read_csv("data/cs-training.csv")
+    data = pd.read_csv("src/Part C/data/cs-training.csv")
     model = CreditRiskMLModel()
     model.preprocess_data(data, target_col="SeriousDlqin2yrs")
     model.train_logistic_regression()
@@ -219,7 +262,7 @@ def main():
 
     model.save_model("logistic_model.pkl")
 
-    test_predictions = model.test_on_external_data("data/cs-test.csv")
+    test_predictions = model.test_on_external_data("src/Part C/data/cs-test.csv")
     if not test_predictions.empty:
         print("\nPredictions on test data:")
         print(test_predictions.head())
