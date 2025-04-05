@@ -256,7 +256,7 @@ def predict_on_new_data(model: CreditRiskMLModel, filepath: str, output_path: st
     plt.show()
 
     test_df.to_csv(output_path, index=False)
-    print(f"\n✅ Predictions saved to: {output_path}")
+    print(f"\nPredictions saved to: {output_path}")
 
 def main():
     """
