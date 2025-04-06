@@ -9,6 +9,9 @@ import pandas as pd
 import numpy as np
 import os
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+import matplotlib.pyplot as plt
+import seaborn as sns
+
 
 def check_eligibility(age, monthly_income, loan_amount):
     """Verifica si el solicitante cumple con los requisitos mínimos.
@@ -258,6 +261,17 @@ def main():
     print(f"Desviación Estándar: {np.std(valid_scores):.2f}")
     print(f"Puntaje Mínimo: {np.min(valid_scores) if valid_scores else 0}")
     print(f"Puntaje Máximo: {np.max(valid_scores) if valid_scores else 0}")
+
+    cm = metrics["Confusion Matrix"]
+    labels = ["Rechazado (Real)", "Aprobado (Real)"]
+    
+    plt.figure(figsize=(6, 4))
+    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=labels, yticklabels=labels)
+    plt.xlabel("Predicción")
+    plt.ylabel("Valor Real")
+    plt.title("Matriz de Confusión del Scorecard")
+    plt.tight_layout()
+    plt.show()
 
 if __name__ == "__main__":
     main()
