@@ -123,16 +123,52 @@ pip install -r requirements.txt
 ```
 
 3. Run the scripts:
+
+The recommended way is to navigate through the directories of the repository by using the `cd` command. Please first make sure to know the route you are currently on by typing `pwd` in the terminal
+
 ```bash
-# Scorecard model
-python src/Part\ A/scorecard_model.py
-
-# Evaluate using multiple thresholds
-python src/Part\ A/test_multiple_thresholds.py
-
-# Advanced ML models (OOP)
-python src/Part\ C/credit_risk_model.py
+pwd
 ```
+If the output ends with Credit-Model-Project, as shown below:
+
+```bash
+# Example of route
+route/a/Credit-Model-Project
+```
+
+Then you can navigate by typing the following: 
+
+To run `scorecard_model.py` in Part A
+
+```bash
+cd src
+cd "Part A"
+python scorecard_model.py
+```
+
+To run `multiple_thresholds.py` in Part A
+
+```bash
+cd src
+cd "Part A"
+python multiple_thresholds.py
+```
+
+To run `credit_risk_model.py` in Part C
+
+```bash
+cd src
+cd "Part C"
+python credit_risk_model.py
+```
+
+If the route you are currently on isn't the one showed above, you can return to the main folder by typing:
+
+```bash
+cd ../../
+```
+
+Then you can check again the route with `pwd`, if the route is correct and it ends with Credit-Model-Project, you can then proceed to run the instructions above.
 
 ---
 
