@@ -8,7 +8,7 @@ This project focuses on credit risk modeling using two main approaches:
 - A **traditional scorecard model** (Part A) inspired by FICO and VantageScore methodologies, emphasizing interpretability and statistical rigor.
 - A set of **advanced machine learning models** (Part C), implemented using object-oriented programming for modularity and scalability.
 
-The objective is to predict the likelihood that a loan applicant will default based on financial and behavioral variables.
+The objective of Part A is to evaluate a new loan applicant by assigning a credit score, and decide if the loan is aproved or rejected. Part C focuses on predicting the likelihood that a loan applicant will default based on financial and behavioral variables.
 
 ---
 
