@@ -60,7 +60,7 @@ The dataset includes the following variables:
 - **NumberOfTime60-89DaysPastDueNotWorse**: Number of times the borrower has been 60–89 days past due but not worse in the last two years.
 - **NumberOfDependents**: Number of dependents in the family, excluding the borrower (e.g., spouse, children).
 
-For more details, refer to the [competition's data page](https://www.kaggle.com/c/GiveMeSomeCredit/data).
+For more details, refer to the [Competition's Code Page](https://www.kaggle.com/c/GiveMeSomeCredit/code).
 
 ## Part A: Traditional Scorecard Model
 
