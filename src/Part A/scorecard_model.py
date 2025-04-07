@@ -7,11 +7,10 @@
 
 import pandas as pd
 import numpy as np
-import os
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import roc_curve, auc, roc_auc_score
 import matplotlib.pyplot as plt
 import seaborn as sns
-
 
 def check_eligibility(age, monthly_income, loan_amount):
     """Verifica si el solicitante cumple con los requisitos mínimos.
@@ -200,20 +199,60 @@ def evaluate_dataset(data):
     """Evalúa todo el dataset y compara con la variable objetivo."""
     scores = []
     decisions = []
+    raw_scores = []  # Para la curva ROC necesitamos los puntajes numéricos
     
     for _, row in data.iterrows():
         applicant_data = prepare_applicant_data(row)
         score, decision = evaluate_applicant(applicant_data)
-        scores.append(score if score is not None else 0)
+        raw_score = score if score is not None else 0
+        scores.append(raw_score)
         decisions.append(1 if decision == "Aprobado" else 0)  # 1 = Aprobado, 0 = Rechazado/No elegible
+        raw_scores.append(raw_score)
     
-    return scores, decisions
+    return scores, decisions, raw_scores
+
+def plot_confusion_matrix(y_true, y_pred):
+    """Visualiza la matriz de confusión."""
+    plt.figure(figsize=(8, 6))
+    cm = confusion_matrix(y_true, y_pred)
+    
+    # Usamos seaborn para una mejor visualización
+    sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
+                xticklabels=['No Aprobado', 'Aprobado'],
+                yticklabels=['No Aprobado', 'Aprobado'])
+    
+    plt.xlabel('Predicción')
+    plt.ylabel('Valor Real')
+    plt.title('Matriz de Confusión')
+    plt.tight_layout()
+    plt.savefig('confusion_matrix.png')
+    plt.show()
+
+def plot_roc_curve(y_true, y_scores):
+    """Visualiza la curva ROC."""
+    # Calcular la curva ROC
+    fpr, tpr, thresholds = roc_curve(y_true, y_scores)
+    roc_auc = auc(fpr, tpr)
+    
+    # Graficar la curva ROC
+    plt.figure(figsize=(8, 6))
+    plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {roc_auc:.2f})')
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('Tasa de Falsos Positivos')
+    plt.ylabel('Tasa de Verdaderos Positivos')
+    plt.title('Curva ROC')
+    plt.legend(loc="lower right")
+    plt.grid(True, linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig('roc_curve.png')
+    plt.show()
 
 def main():
     """Función principal para probar el scorecard con el dataset."""
     # Cargar el dataset
-    
-    data = pd.read_csv("src/Part A/data/cs-training.csv")
+    data = pd.read_csv("data/cs-training.csv")
 
     # Limpiar el dataset (mismo preprocesamiento que en la Parte C)
     if "Unnamed: 0" in data.columns:
@@ -229,7 +268,7 @@ def main():
     data["MonthlyIncome"] = data["MonthlyIncome"].fillna(data["MonthlyIncome"].median())
 
     # Evaluar el dataset
-    scores, decisions = evaluate_dataset(data)
+    scores, decisions, raw_scores = evaluate_dataset(data)
 
     # Comparar con la variable objetivo (SeriousDlqin2yrs invertida: 1 = no incumplimiento, 0 = incumplimiento)
     y_true = 1 - data["SeriousDlqin2yrs"]  # Invertimos para que 1 = buen cliente (debería ser Aprobado)
@@ -241,7 +280,7 @@ def main():
         "Precision": precision_score(y_true, y_pred),
         "Recall": recall_score(y_true, y_pred),
         "F1-Score": f1_score(y_true, y_pred),
-        "Confusion Matrix": confusion_matrix(y_true, y_pred)
+        "AUC-ROC": roc_auc_score(y_true, raw_scores)
     }
 
     # Imprimir resultados
@@ -250,8 +289,15 @@ def main():
     print(f"Precision: {metrics['Precision']:.4f}")
     print(f"Recall: {metrics['Recall']:.4f}")
     print(f"F1-Score: {metrics['F1-Score']:.4f}")
-    print("Matriz de Confusión:")
-    print(metrics['Confusion Matrix'])
+    print(f"AUC-ROC: {metrics['AUC-ROC']:.4f}")
+
+    # Visualizar matriz de confusión
+    print("\nGenerando matriz de confusión...")
+    plot_confusion_matrix(y_true, y_pred)
+    
+    # Visualizar curva ROC
+    print("\nGenerando curva ROC...")
+    plot_roc_curve(y_true, raw_scores)
 
     # Estadísticas de los puntajes
     valid_scores = [s for s in scores if s > 0]
@@ -262,15 +308,17 @@ def main():
     print(f"Puntaje Mínimo: {np.min(valid_scores) if valid_scores else 0}")
     print(f"Puntaje Máximo: {np.max(valid_scores) if valid_scores else 0}")
 
-    cm = metrics["Confusion Matrix"]
-    labels = ["Rechazado (Real)", "Aprobado (Real)"]
-    
-    plt.figure(figsize=(6, 4))
-    sns.heatmap(cm, annot=True, fmt="d", cmap="Blues", xticklabels=labels, yticklabels=labels)
-    plt.xlabel("Predicción")
-    plt.ylabel("Valor Real")
-    plt.title("Matriz de Confusión del Scorecard")
+    # Generar histograma de distribución de puntajes
+    plt.figure(figsize=(10, 6))
+    plt.hist(valid_scores, bins=20, alpha=0.7, color='blue', edgecolor='black')
+    plt.axvline(x=600, color='red', linestyle='--', label='Umbral de Aprobación (600)')
+    plt.xlabel('Puntaje de Crédito')
+    plt.ylabel('Frecuencia')
+    plt.title('Distribución de Puntajes de Crédito')
+    plt.legend()
+    plt.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
+    plt.savefig('score_distribution.png')
     plt.show()
 
 if __name__ == "__main__":
