@@ -1,9 +1,8 @@
-# Modelo Tradicional de Credit Scoring para Préstamos Personales
-# Autores: [Daniel Sánchez & Ana Luisa Espinoza & Gustavo de Anda]
-# Fecha: 25 de marzo de 2025
-# Descripción: Scorecard híbrido con restricciones,
-# basado en modelos como FICO y VantageScore.
-
+# Traditional Credit Scoring Model for Personal Loans
+# Authors: [Daniel Sánchez & Ana Luisa Espinoza & Gustavo de Anda]
+# Date: March 25, 2025
+# Description: Hybrid scorecard with constraints,
+# based on models like FICO and VantageScore.
 
 import pandas as pd
 import numpy as np
@@ -13,15 +12,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 def check_eligibility(age, monthly_income, loan_amount):
-    """Verifica si el solicitante cumple con los requisitos mínimos.
+    """Checks if the applicant meets the minimum requirements.
     
     Args:
-        age (int): Edad del solicitante.
-        monthly_income (float): Ingresos mensuales en USD.
-        loan_amount (float): Monto solicitado en USD.
+        age (int): Applicant's age.
+        monthly_income (float): Monthly income in USD.
+        loan_amount (float): Requested loan amount in USD.
     
     Returns:
-        bool: True si es elegible, False si no.
+        bool: True if eligible, False otherwise.
     """
     min_age = 18
     min_income = 400  # $8,000 MXN ≈ $400 USD
@@ -32,7 +31,7 @@ def check_eligibility(age, monthly_income, loan_amount):
     return True
 
 def repayment_history_score(late_payments):
-    """Puntaje por historial de pagos (máximo 350 puntos)."""
+    """Payment history score (maximum 350 points)."""
     if late_payments == 0:
         return 350
     elif late_payments == 1:
@@ -43,7 +42,7 @@ def repayment_history_score(late_payments):
         return 0
 
 def total_amount_owed_score(amount_owed):
-    """Puntaje por monto total adeudado (máximo 150 puntos)."""
+    """Score for total amount owed (maximum 150 points)."""
     if amount_owed < 1000:
         return 150
     elif 1000 <= amount_owed < 5000:
@@ -54,7 +53,7 @@ def total_amount_owed_score(amount_owed):
         return 50
 
 def credit_history_length_score(years):
-    """Puntaje por antigüedad crediticia (máximo 150 puntos)."""
+    """Credit history length score (maximum 150 points)."""
     if years < 2:
         return 50
     elif 2 <= years < 5:
@@ -65,7 +64,7 @@ def credit_history_length_score(years):
         return 150
 
 def credit_types_score(num_types):
-    """Puntaje por mezcla de créditos (máximo 100 puntos)."""
+    """Credit mix score (maximum 100 points)."""
     if num_types == 1:
         return 60
     elif num_types == 2:
@@ -74,7 +73,7 @@ def credit_types_score(num_types):
         return 100
 
 def new_credit_score(inquiries):
-    """Puntaje por nuevos créditos/consultas (máximo 100 puntos)."""
+    """New credit inquiries score (maximum 100 points)."""
     if inquiries == 0:
         return 100
     elif inquiries == 1:
@@ -85,7 +84,7 @@ def new_credit_score(inquiries):
         return 40
 
 def available_credit_score(credit_available):
-    """Puntaje por crédito disponible (máximo 100 puntos)."""
+    """Available credit score (maximum 100 points)."""
     if credit_available > 5000:
         return 100
     elif 2000 <= credit_available <= 5000:
@@ -96,7 +95,7 @@ def available_credit_score(credit_available):
         return 40
 
 def credit_utilization_score(usage_percent):
-    """Puntaje por utilización de crédito (máximo 150 puntos)."""
+    """Credit utilization score (maximum 150 points)."""
     if usage_percent < 30:
         return 150
     elif 30 <= usage_percent < 50:
@@ -107,7 +106,7 @@ def credit_utilization_score(usage_percent):
         return 50
 
 def income_score(monthly_income):
-    """Puntaje por ingresos mensuales, mínimo $400 USD (máximo 100 puntos)."""
+    """Monthly income score (minimum $400 USD, maximum 100 points)."""
     if 400 <= monthly_income < 700:
         return 40
     elif 700 <= monthly_income < 1000:
@@ -120,7 +119,7 @@ def income_score(monthly_income):
         return 100
 
 def job_tenure_score(years):
-    """Puntaje por antigüedad laboral (máximo 100 puntos)."""
+    """Job tenure score (maximum 100 points)."""
     if years < 1:
         return 40
     elif 1 <= years < 3:
@@ -131,7 +130,7 @@ def job_tenure_score(years):
         return 100
 
 def open_loans_score(num_loans):
-    """Puntaje por cantidad de préstamos abiertos (máximo 100 puntos)."""
+    """Open loans score (maximum 100 points)."""
     if num_loans <= 1:
         return 100
     elif 2 <= num_loans <= 3:
@@ -142,42 +141,42 @@ def open_loans_score(num_loans):
         return 40
 
 def prepare_applicant_data(row):
-    """Transforma una fila del dataset en el formato esperado por el scorecard."""
-    # Imputar valores faltantes
+    """Transforms a dataset row into the format expected by the scorecard."""
+    # Impute missing values
     monthly_income = row["MonthlyIncome"] if not pd.isna(row["MonthlyIncome"]) else row["MonthlyIncome"].median()
     
-    # Mapeo de variables
+    # Variable mapping
     applicant_data = {
         "age": row["age"],
         "monthly_income": monthly_income,
-        "loan_amount": 10000,  # Asumimos $10,000 para pruebas
+        "loan_amount": 10000,  # Assume $10,000 for testing
         "late_payments": (
             row["NumberOfTime30-59DaysPastDueNotWorse"] +
             row["NumberOfTime60-89DaysPastDueNotWorse"] +
             row["NumberOfTimes90DaysLate"]
         ),
-        "amount_owed": monthly_income * row["DebtRatio"] * 12,  # Estimamos deuda anual
-        "credit_age": min(max(0, row["age"] - 18), 20),  # Limitamos a 20 años
+        "amount_owed": monthly_income * row["DebtRatio"] * 12,  # Estimate annual debt
+        "credit_age": min(max(0, row["age"] - 18), 20),  # Limited to 20 years
         "credit_types": (
             2 if row["NumberRealEstateLoansOrLines"] > 0 and 
                 row["NumberOfOpenCreditLinesAndLoans"] > row["NumberRealEstateLoansOrLines"] 
                 else 1
         ),
-        "inquiries": 0,  # Asumimos 0 consultas
-        "available_credit": 10000 * (1 - row["RevolvingUtilizationOfUnsecuredLines"]),  # Límite fijo de $10,000
-        "credit_usage": row["RevolvingUtilizationOfUnsecuredLines"] * 100,  # Convertimos a porcentaje
-        "job_tenure": 3,  # Asumimos 3 años
+        "inquiries": 0,  # Assume 0 inquiries
+        "available_credit": 10000 * (1 - row["RevolvingUtilizationOfUnsecuredLines"]),  # Fixed limit of $10,000
+        "credit_usage": row["RevolvingUtilizationOfUnsecuredLines"] * 100,  # Convert to percentage
+        "job_tenure": 3,  # Assume 3 years
         "open_loans": row["NumberOfOpenCreditLinesAndLoans"]
     }
     return applicant_data
 
 def evaluate_applicant(data):
-    """Evalúa al solicitante si es elegible y calcula el puntaje total."""
-    # Verificar elegibilidad
+    """Evaluates the applicant's eligibility and calculates total score."""
+    # Check eligibility
     if not check_eligibility(data["age"], data["monthly_income"], data["loan_amount"]):
-        return None, "No elegible"
+        return None, "Not eligible"
     
-    # Calcular puntaje
+    # Calculate score
     total_score = (
         repayment_history_score(data["late_payments"]) +
         total_amount_owed_score(data["amount_owed"]) +
@@ -191,58 +190,58 @@ def evaluate_applicant(data):
         open_loans_score(data["open_loans"])
     )
     
-    threshold = 600  # Umbral de aprobación
-    decision = "Aprobado" if total_score >= threshold else "Rechazado"
+    threshold = 600  # Approval threshold
+    decision = "Approved" if total_score >= threshold else "Rejected"
     return total_score, decision
 
 def evaluate_dataset(data):
-    """Evalúa todo el dataset y compara con la variable objetivo."""
+    """Evaluates entire dataset and compares with target variable."""
     scores = []
     decisions = []
-    raw_scores = []  # Para la curva ROC necesitamos los puntajes numéricos
+    raw_scores = []  # For ROC curve we need numerical scores
     
     for _, row in data.iterrows():
         applicant_data = prepare_applicant_data(row)
         score, decision = evaluate_applicant(applicant_data)
         raw_score = score if score is not None else 0
         scores.append(raw_score)
-        decisions.append(1 if decision == "Aprobado" else 0)  # 1 = Aprobado, 0 = Rechazado/No elegible
+        decisions.append(1 if decision == "Approved" else 0)  # 1 = Approved, 0 = Rejected/Not eligible
         raw_scores.append(raw_score)
     
     return scores, decisions, raw_scores
 
 def plot_confusion_matrix(y_true, y_pred):
-    """Visualiza la matriz de confusión."""
+    """Visualizes confusion matrix."""
     plt.figure(figsize=(8, 6))
     cm = confusion_matrix(y_true, y_pred)
     
-    # Usamos seaborn para una mejor visualización
+    # Use seaborn for better visualization
     sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', 
-                xticklabels=['No Aprobado', 'Aprobado'],
-                yticklabels=['No Aprobado', 'Aprobado'])
+                xticklabels=['Not Approved', 'Approved'],
+                yticklabels=['Not Approved', 'Approved'])
     
-    plt.xlabel('Predicción')
-    plt.ylabel('Valor Real')
-    plt.title('Matriz de Confusión')
+    plt.xlabel('Prediction')
+    plt.ylabel('Actual')
+    plt.title('Confusion Matrix')
     plt.tight_layout()
     plt.savefig('confusion_matrix.png')
     plt.show()
 
 def plot_roc_curve(y_true, y_scores):
-    """Visualiza la curva ROC."""
-    # Calcular la curva ROC
+    """Visualizes ROC curve."""
+    # Calculate ROC curve
     fpr, tpr, thresholds = roc_curve(y_true, y_scores)
     roc_auc = auc(fpr, tpr)
     
-    # Graficar la curva ROC
+    # Plot ROC curve
     plt.figure(figsize=(8, 6))
     plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'ROC curve (area = {roc_auc:.2f})')
     plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
     plt.xlim([0.0, 1.0])
     plt.ylim([0.0, 1.05])
-    plt.xlabel('Tasa de Falsos Positivos')
-    plt.ylabel('Tasa de Verdaderos Positivos')
-    plt.title('Curva ROC')
+    plt.xlabel('False Positive Rate')
+    plt.ylabel('True Positive Rate')
+    plt.title('ROC Curve')
     plt.legend(loc="lower right")
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
@@ -250,11 +249,11 @@ def plot_roc_curve(y_true, y_scores):
     plt.show()
 
 def main():
-    """Función principal para probar el scorecard con el dataset."""
-    # Cargar el dataset
+    """Main function to test the scorecard with dataset."""
+    # Load the dataset
     data = pd.read_csv("data/cs-training.csv")
 
-    # Limpiar el dataset (mismo preprocesamiento que en la Parte C)
+    # Clean the dataset (same preprocessing as in Part C)
     if "Unnamed: 0" in data.columns:
         data = data.drop(columns=["Unnamed: 0"])
     data = data[data["RevolvingUtilizationOfUnsecuredLines"] < 13]
@@ -264,17 +263,17 @@ def main():
     debt_ratio_threshold = data["DebtRatio"].quantile(0.975)
     data = data[data["DebtRatio"] <= debt_ratio_threshold]
 
-    # Imputar valores faltantes para MonthlyIncome (usamos la mediana del dataset completo)
+    # Impute missing values for MonthlyIncome (use median from full dataset)
     data["MonthlyIncome"] = data["MonthlyIncome"].fillna(data["MonthlyIncome"].median())
 
-    # Evaluar el dataset
+    # Evaluate dataset
     scores, decisions, raw_scores = evaluate_dataset(data)
 
-    # Comparar con la variable objetivo (SeriousDlqin2yrs invertida: 1 = no incumplimiento, 0 = incumplimiento)
-    y_true = 1 - data["SeriousDlqin2yrs"]  # Invertimos para que 1 = buen cliente (debería ser Aprobado)
+    # Compare with target variable (SeriousDlqin2yrs inverted: 1 = no default, 0 = default)
+    y_true = 1 - data["SeriousDlqin2yrs"]  # Invert so that 1 = good client (should be Approved)
     y_pred = decisions
 
-    # Calcular métricas
+    # Calculate metrics
     metrics = {
         "Accuracy": accuracy_score(y_true, y_pred),
         "Precision": precision_score(y_true, y_pred),
@@ -283,38 +282,38 @@ def main():
         "AUC-ROC": roc_auc_score(y_true, raw_scores)
     }
 
-    # Imprimir resultados
-    print("=== Resultados de la Evaluación del Scorecard ===")
+    # Print results
+    print("=== Scorecard Evaluation Results ===")
     print(f"Accuracy: {metrics['Accuracy']:.4f}")
     print(f"Precision: {metrics['Precision']:.4f}")
     print(f"Recall: {metrics['Recall']:.4f}")
     print(f"F1-Score: {metrics['F1-Score']:.4f}")
     print(f"AUC-ROC: {metrics['AUC-ROC']:.4f}")
 
-    # Visualizar matriz de confusión
-    print("\nGenerando matriz de confusión...")
+    # Visualize confusion matrix
+    print("\nGenerating confusion matrix...")
     plot_confusion_matrix(y_true, y_pred)
     
-    # Visualizar curva ROC
-    print("\nGenerando curva ROC...")
+    # Visualize ROC curve
+    print("\nGenerating ROC curve...")
     plot_roc_curve(y_true, raw_scores)
 
-    # Estadísticas de los puntajes
+    # Score statistics
     valid_scores = [s for s in scores if s > 0]
-    print("\nEstadísticas de los Puntajes:")
-    print(f"Solicitantes Elegibles: {len(valid_scores)}")
-    print(f"Promedio de Puntaje: {np.mean(valid_scores):.2f}")
-    print(f"Desviación Estándar: {np.std(valid_scores):.2f}")
-    print(f"Puntaje Mínimo: {np.min(valid_scores) if valid_scores else 0}")
-    print(f"Puntaje Máximo: {np.max(valid_scores) if valid_scores else 0}")
+    print("\nScore Statistics:")
+    print(f"Eligible Applicants: {len(valid_scores)}")
+    print(f"Average Score: {np.mean(valid_scores):.2f}")
+    print(f"Standard Deviation: {np.std(valid_scores):.2f}")
+    print(f"Minimum Score: {np.min(valid_scores) if valid_scores else 0}")
+    print(f"Maximum Score: {np.max(valid_scores) if valid_scores else 0}")
 
-    # Generar histograma de distribución de puntajes
+    # Generate score distribution histogram
     plt.figure(figsize=(10, 6))
     plt.hist(valid_scores, bins=20, alpha=0.7, color='blue', edgecolor='black')
-    plt.axvline(x=600, color='red', linestyle='--', label='Umbral de Aprobación (600)')
-    plt.xlabel('Puntaje de Crédito')
-    plt.ylabel('Frecuencia')
-    plt.title('Distribución de Puntajes de Crédito')
+    plt.axvline(x=600, color='red', linestyle='--', label='Approval Threshold (600)')
+    plt.xlabel('Credit Score')
+    plt.ylabel('Frequency')
+    plt.title('Credit Score Distribution')
     plt.legend()
     plt.grid(True, linestyle='--', alpha=0.7)
     plt.tight_layout()
