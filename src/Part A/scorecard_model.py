@@ -1,7 +1,7 @@
 # Modelo Tradicional de Credit Scoring para Préstamos Personales
 # Autores: [Daniel Sánchez & Ana Luisa Espinoza & Gustavo de Anda]
 # Fecha: 25 de marzo de 2025
-# Descripción: Scorecard híbrido con restricciones de entrada basado en bancos mexicanos,
+# Descripción: Scorecard híbrido con restricciones,
 # basado en modelos como FICO y VantageScore.
 
 

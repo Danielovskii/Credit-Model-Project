@@ -128,7 +128,7 @@ def prepare_applicant_data(row):
     }
     return applicant_data
 
-def evaluate_applicant(data, threshold=600):
+def evaluate_applicant(data, threshold=800):
     """Evalúa al solicitante si es elegible y calcula el puntaje total."""
     if not check_eligibility(data["age"], data["monthly_income"]):
         return None, "No elegible"
@@ -147,7 +147,7 @@ def evaluate_applicant(data, threshold=600):
     decision = "Aprobado" if total_score >= threshold else "Rechazado"
     return total_score, decision
 
-def evaluate_dataset(data, threshold=850):
+def evaluate_dataset(data, threshold=800):
     """Evalúa todo el dataset y compara con la variable objetivo."""
     scores = []
     decisions = []
@@ -229,6 +229,186 @@ def plot_score_distribution(scores):
     plt.tight_layout()
     plt.show()
 
+def evaluate_benchmark_comparison(data, threshold=800):
+    """
+    Evalúa el scorecard model contra la variable objetivo real (SeriousDlqin2yrs)
+    y genera un análisis detallado de la comparación.
+    """
+    # Calcular scores para todos los solicitantes
+    scores, decisions = evaluate_dataset(data, threshold=threshold)
+    
+    # Verificar que todos los arrays tengan la misma longitud
+    print(f"Longitud de data: {len(data)}")
+    print(f"Longitud de scores: {len(scores)}")
+    print(f"Longitud de decisions: {len(decisions)}")
+    
+    # Asegurarnos de trabajar con arrays del mismo tamaño
+    # Convertir a arrays de numpy para uniformidad
+    scores_array = np.array(scores)
+    decisions_array = np.array(decisions)
+    y_true_array = np.array(1 - data["SeriousDlqin2yrs"])
+    
+    # Verificar longitudes después de conversión
+    print(f"Longitud de scores_array: {len(scores_array)}")
+    print(f"Longitud de decisions_array: {len(decisions_array)}")
+    print(f"Longitud de y_true_array: {len(y_true_array)}")
+    
+    # Si hay alguna diferencia en las longitudes, truncar al mínimo común
+    min_length = min(len(scores_array), len(decisions_array), len(y_true_array), len(data))
+    print(f"Longitud mínima: {min_length}")
+    
+    # Truncar todas las variables a la misma longitud
+    scores_array = scores_array[:min_length]
+    decisions_array = decisions_array[:min_length]
+    y_true_array = y_true_array[:min_length]
+    
+    # Crear DataFrame de resultados asegurando que todos los arrays tienen la misma longitud
+    results_df = pd.DataFrame({
+        'Real': pd.Series(y_true_array).map({1: 'Buen pagador', 0: 'Incumplidor'}),
+        'Predicción': pd.Series(decisions_array).map({1: 'Aprobado', 0: 'Rechazado'}),
+        'Score': pd.Series(scores_array)
+    })
+    
+    # Resto del código
+    # Matriz de confusión en formato más legible
+    conf_matrix = pd.crosstab(results_df['Real'], results_df['Predicción'], 
+                              rownames=['Real'], colnames=['Predicción'])
+    
+    # Calcular métricas
+    metrics = {
+        "Accuracy": accuracy_score(y_true_array, decisions_array),
+        "Precision": precision_score(y_true_array, decisions_array),
+        "Recall": recall_score(y_true_array, decisions_array),
+        "F1-Score": f1_score(y_true_array, decisions_array),
+        "AUC-ROC": roc_auc_score(y_true_array, scores_array),
+    }
+    
+    # Calcular tasas de falsos positivos y negativos
+    tn, fp, fn, tp = confusion_matrix(y_true_array, decisions_array).ravel()
+    fpr = fp / (fp + tn)
+    fnr = fn / (fn + tp)
+    
+    # Análisis por grupo
+    group_analysis = results_df.groupby(['Real', 'Predicción']).agg(
+        count=('Score', 'count'),
+        avg_score=('Score', 'mean'),
+        min_score=('Score', 'min'),
+        max_score=('Score', 'max')
+    ).reset_index()
+    
+    return {
+        'results_df': results_df,
+        'conf_matrix': conf_matrix,
+        'metrics': metrics,
+        'fpr': fpr,
+        'fnr': fnr,
+        'group_analysis': group_analysis
+    }
+
+def visualize_benchmark_comparison(results):
+    """
+    Genera visualizaciones para la comparación del scorecard contra datos reales.
+    """
+    # Matriz de confusión como heatmap
+    plt.figure(figsize=(10, 8))
+    sns.heatmap(results['conf_matrix'], annot=True, fmt='d', cmap="Blues", cbar=False)
+    plt.title(f"Matriz de Confusión (Umbral = 800)")
+    plt.tight_layout()
+    plt.show()
+    
+    # Distribución de scores por grupo (Real vs Predicción)
+    plt.figure(figsize=(12, 8))
+    ax = sns.boxplot(x='Real', y='Score', hue='Predicción', data=results['results_df'])
+    plt.axhline(y=800, color='red', linestyle='--', label='Umbral (800)')
+    plt.title('Distribución de Scores por Grupo')
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+    
+    # Histograma de scores separado por clase real
+    plt.figure(figsize=(12, 6))
+    sns.histplot(
+        data=results['results_df'], 
+        x='Score', 
+        hue='Real', 
+        multiple='stack',
+        bins=50
+    )
+    plt.axvline(x=800, color='red', linestyle='--', label='Umbral (800)')
+    plt.title('Distribución de Scores por Clase Real')
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+    
+    # Calcular y graficar curva ROC
+    y_true = results['results_df']['Real'].map({'Buen pagador': 1, 'Incumplidor': 0})
+    scores = results['results_df']['Score']
+    
+    fpr, tpr, _ = roc_curve(y_true, scores)
+    roc_auc = auc(fpr, tpr)
+    
+    plt.figure(figsize=(8, 8))
+    plt.plot(fpr, tpr, color='darkorange', lw=2, label=f'Curva ROC (AUC = {roc_auc:.3f})')
+    plt.plot([0, 1], [0, 1], color='navy', lw=2, linestyle='--')
+    plt.xlim([0.0, 1.0])
+    plt.ylim([0.0, 1.05])
+    plt.xlabel('Tasa de Falsos Positivos')
+    plt.ylabel('Tasa de Verdaderos Positivos')
+    plt.title('Curva ROC')
+    plt.legend(loc="lower right")
+    plt.tight_layout()
+    plt.show()
+
+def run_benchmark_comparison(data, threshold=800):
+    """
+    Ejecuta la comparación completa y muestra resultados.
+    """
+    print(f"\n===== EVALUACIÓN DEL SCORECARD VS DATOS REALES (UMBRAL = {threshold}) =====\n")
+    
+    # Obtener resultados de la evaluación
+    results = evaluate_benchmark_comparison(data, threshold)
+    
+    # Mostrar matriz de confusión
+    print("Matriz de Confusión:")
+    print(results['conf_matrix'])
+    print("\nNota interpretativa:")
+    print("- Verdaderos Positivos (VP):", results['conf_matrix'].loc['Buen pagador', 'Aprobado'], 
+          "- Buenos pagadores correctamente aprobados")
+    print("- Falsos Positivos (FP):", results['conf_matrix'].loc['Incumplidor', 'Aprobado'], 
+          "- Incumplidores incorrectamente aprobados")
+    print("- Verdaderos Negativos (VN):", results['conf_matrix'].loc['Incumplidor', 'Rechazado'], 
+          "- Incumplidores correctamente rechazados")
+    print("- Falsos Negativos (FN):", results['conf_matrix'].loc['Buen pagador', 'Rechazado'], 
+          "- Buenos pagadores incorrectamente rechazados")
+    
+    # Mostrar métricas
+    print("\nMétricas de Rendimiento:")
+    for metric, value in results['metrics'].items():
+        print(f"- {metric}: {value:.4f}")
+    
+    print(f"- Tasa de Falsos Positivos (FPR): {results['fpr']:.4f}")
+    print(f"- Tasa de Falsos Negativos (FNR): {results['fnr']:.4f}")
+    
+    # Análisis por grupo
+    print("\nAnálisis por Grupo:")
+    print(results['group_analysis'])
+    
+    # Generar visualizaciones
+    print("\nGenerando visualizaciones...")
+    visualize_benchmark_comparison(results)
+    
+    # Análisis de aplicantes incorrectamente clasificados
+    incorrect = results['results_df'][
+        ((results['results_df']['Real'] == 'Buen pagador') & (results['results_df']['Predicción'] == 'Rechazado')) |
+        ((results['results_df']['Real'] == 'Incumplidor') & (results['results_df']['Predicción'] == 'Aprobado'))
+    ]
+    
+    print(f"\nTotal de aplicantes incorrectamente clasificados: {len(incorrect)}")
+    print(f"- Falsos Positivos (Incumplidores aprobados): {len(incorrect[incorrect['Real'] == 'Incumplidor'])}")
+    print(f"- Falsos Negativos (Buenos pagadores rechazados): {len(incorrect[incorrect['Real'] == 'Buen pagador'])}")
+    
+    return results
+
 def main():
     """Función principal para probar el scorecard con el dataset."""
     # Construir la ruta al archivo
@@ -288,6 +468,8 @@ def main():
 
     # Generar el multi-histograma
     plot_score_histogram(data, np.array(scores), y_true, threshold=800)
+
+    run_benchmark_comparison(data, threshold=800)
 
     # Probar diferentes umbrales
     thresholds = [800, 850, 900]
